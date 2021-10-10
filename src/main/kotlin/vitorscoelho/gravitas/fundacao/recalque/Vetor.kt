@@ -7,4 +7,8 @@ data class Vetor2D(val x: Double, val y: Double) {
 data class Vetor3D(val x: Double, val y: Double, val z: Double) {
     fun plus(deltaX: Double = 0.0, deltaY: Double = 0.0, deltaZ: Double) =
         Vetor3D(x = x + deltaX, y = y + deltaY, z = z + deltaZ)
+
+    companion object {
+        val ZERO: Vetor3D get() = Vetor3D(x = 0.0, y = 0.0, z = 0.0)
+    }
 }

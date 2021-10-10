@@ -23,12 +23,18 @@ data class TrechoDeEstaca(
     /**Retorna uma lista com forças representando a resultante no centro da seção*/
     fun forcasFuste(topoDoTrecho: Vetor3D): Sequence<Forca> {
         val delta = comprimento / qtdDivisoes
-        val forcasResultantes = (1..qtdDivisoes).asSequence()
-            .map { divisao ->
-                val distanciaDoTopo = (divisao - 0.5) * delta
+        val forcasResultantes = (0 until qtdDivisoes).asSequence()
+            .map { divisao -> divisao.toDouble() * delta }
+            .map { zMin ->
+                val trapezio = Trapezio(
+                    yInferior = zMin,
+                    larguraInferior = atritoLateral(distanciaTopo = zMin),
+                    larguraSuperior = atritoLateral(distanciaTopo = zMin + delta),
+                    altura = delta
+                )
                 Forca(
-                    magnitude = delta * atritoLateral(distanciaTopo = distanciaDoTopo),
-                    posicao = topoDoTrecho.plus(deltaZ = distanciaDoTopo)
+                    magnitude = trapezio.area,
+                    posicao = topoDoTrecho.plus(deltaZ = trapezio.ycg)
                 )
             }
         return secao.forcasPerimetro(forcasResultantes = forcasResultantes)
@@ -38,7 +44,7 @@ data class TrechoDeEstaca(
         secao.forcasPonta(forcaResultante = Forca(magnitude = cargaNaPonta, posicao = posicaoPonta))
 }
 
-class EstacaPrismatica(val topo: Vetor3D, val trechos: List<TrechoDeEstaca>, val cargaNaPonta: Double) {
+data class EstacaPrismatica(val topo: Vetor3D, val trechos: List<TrechoDeEstaca>, val cargaNaPonta: Double) {
     init {
         //TODO deve exigir que não possa existir transferência de carga com profundidade negativa
         require(trechos.isNotEmpty())
