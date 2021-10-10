@@ -1,5 +1,6 @@
 plugins {
-    kotlin("jvm") version "1.5.30"
+    val kotlinVersion: String by System.getProperties()
+    kotlin("jvm") version kotlinVersion
 }
 
 group = "vitorscoelho"
@@ -9,12 +10,21 @@ repositories {
     mavenCentral()
 }
 
-dependencies {
-    implementation(kotlin("stdlib"))
+val kotlinVersion: String by System.getProperties()
+val jvmTargetVersion: String by System.getProperties()
 
-    testImplementation(kotlin("test"))
+dependencies {
+    implementation(kotlin(module = "stdlib", version = kotlinVersion))
+
+    testImplementation(kotlin(module = "test", version = kotlinVersion))
 }
 
 tasks.test {
     useJUnitPlatform()
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+    kotlinOptions {
+        jvmTarget = jvmTargetVersion
+    }
 }
