@@ -100,13 +100,6 @@ class AnaliseOutraTentativa(
         }
 
         //TODO Retirar o trecho abaixo quando implementar matriz simétrica. Pois só serve pra terminar de preencher matriz do Apache Commons Math
-        fun RealMatrix.tornarSimetrica() {
-            (0 until columnDimension).forEach { coluna ->
-                (coluna until columnDimension).forEach { linha ->
-                    setEntry(linha, coluna, getEntry(coluna, linha))
-                }
-            }
-        }
         matrizDeRigidezGlobalDOFsLivres.tornarSimetrica()
 //        matrizDeRigidezGlobalDOFsRestritos.tornarSimetrica()
 
@@ -193,5 +186,13 @@ class AnaliseOutraTentativa(
         }
 
         return deslocamentos
+    }
+}
+
+fun RealMatrix.tornarSimetrica() {
+    (0 until columnDimension).forEach { coluna ->
+        (coluna until columnDimension).forEach { linha ->
+            setEntry(linha, coluna, getEntry(coluna, linha))
+        }
     }
 }

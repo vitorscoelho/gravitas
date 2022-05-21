@@ -11,7 +11,6 @@ class AcoCA(val fyk: Double, val gamaS: Double, val moduloDeDeformacao: Double) 
         require(moduloDeDeformacao > 0.0) { "|moduloDeDeformacao| deve ser maior que 0" }
     }
 
-    val esTLim = -10.0 / 1_000
     val fyd = fyk / gamaS
     val eyd = fyd / moduloDeDeformacao
 

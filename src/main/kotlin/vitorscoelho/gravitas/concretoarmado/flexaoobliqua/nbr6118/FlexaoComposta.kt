@@ -75,6 +75,7 @@ private fun curvaturaELU(
     return min(curvaturaRegiao1, min(curvaturaRegiao2, curvaturaRegiao3))
 }
 
+private const val esTLim = -10.0 / 1_000
 fun momentoPositivoResistenteELU(
     secaoBruta: SecaoTransversal,
     yMinSecaoBruta: Double,
@@ -102,7 +103,7 @@ fun momentoPositivoResistenteELU(
             y = yControle, deformacaoEmY = deformacaoYControle,
             alturaSecao = alturaSecaoBruta, yMinArmadura = yMinArmadura,
             ec2 = concreto.ec2, ecu = concreto.ecu,
-            esTLim = aco.esTLim
+            esTLim = esTLim
         )
         val deformada = DeformadaFlexaoReta.criar(
             y = yControle, deformacaoEmY = deformacaoYControle, curvatura = curvaturaELU

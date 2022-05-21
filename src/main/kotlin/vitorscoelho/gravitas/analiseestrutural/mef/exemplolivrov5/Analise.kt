@@ -10,7 +10,14 @@ data class Deslocamento(
 data class CargaNodal(
     val fx: Double, val fy: Double, val fz: Double,
     val mx: Double, val my: Double, val mz: Double,
-)
+) {
+    companion object {
+        val NULA = CargaNodal(
+            fx = 0.0, fy = 0.0, fz = 0.0,
+            mx = 0.0, my = 0.0, mz = 0.0
+        )
+    }
+}
 
 class Carga(val magnitude: Double, val dof: DOF)
 
