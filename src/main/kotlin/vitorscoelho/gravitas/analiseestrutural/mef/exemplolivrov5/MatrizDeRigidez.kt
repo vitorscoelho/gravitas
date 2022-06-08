@@ -11,3 +11,17 @@ interface MatrizDeRigidez {
 
 //    fun valor(noEfeito: No2D, dofEfeito: DOF, noCausa: No2D, dofCausa: DOF): Double
 }
+
+interface VetorForca {
+    fun valor(indiceLocalDOF: Int): Double
+    fun valor(indiceLocalNo: Int, dof: DOF): Double {
+        return valor(indiceLocalDOF = 6 * indiceLocalNo + dof.indiceLocal)
+    }
+}
+
+interface VetorDeslocamento {
+    fun valor(indiceLocalDOF: Int): Double
+    fun valor(indiceLocalNo: Int, dof: DOF): Double {
+        return valor(indiceLocalDOF = 6 * indiceLocalNo + dof.indiceLocal)
+    }
+}

@@ -16,40 +16,53 @@ fun main() {
         inercia = 20.0 * 40.0.pow(3) / 12.0,
         moduloDeDeformacao = 25.gpa
     )
-    val nos = listOf(0.0, 100.0, 200.0, 300.0, 400.0).map { x -> No2D(x = x, y = 0.0) }
+    val abscissas = run {
+        val lista = mutableListOf<Double>()
+        val delta = 10
+        var x = 0
+        while (x <= 400) {
+            lista += x.toDouble()
+            x += delta
+        }
+        lista
+    }
+//    val abscissas = listOf(0.0, 100.0, 200.0, 300.0, 400.0)
+    val nos = abscissas.map { x -> No2D(x = x, y = 0.0) }
     val barras = nos.zipWithNext { no1, no2 ->
         BarraPilar(secao = secao, noInicial = no1, noFinal = no2)
     }
-    val restricoes = mapOf(
-        nos[0] to listOf(DOF.UX, DOF.UY, DOF.RZ)
+    val restricoes = mapOf<No2D, List<DOF>>(
+        //nos[0] to listOf(DOF.UX, DOF.UY, DOF.RZ)
     )
     val cargas = mapOf(
-        Carga(magnitude = 50.0, dof = DOF.UY) to listOf(nos.last()),
-//        Carga(magnitude = 1.0, dof = DOF.UX) to listOf(nos.last()),
+        Carga(magnitude = 100.0, dof = DOF.UY) to listOf(nos.last()),
+        Carga(magnitude = -400.0, dof = DOF.UX) to listOf(nos.last()),
     )
     val mola = Mola(
         no = nos.last(),
         kTx = 0.0, kTy = 200.0 / 100.0, kRz = 2000.0 * 100.0
     )
-    val analise = AnaliseOutraTentativa2(
-        elementos = barras + mola, restricoes = restricoes, cargas = cargas,
-        dofsAtivos = DOFsAtivos(
-            ux = true, uy = true, uz = false,
-            rx = false, ry = false, rz = true
-        )//TODO testar as outras maneiras
+    val molaRestricao = Mola(
+        no = nos.first(),
+        kTx = 10e8, kTy = 10e8, kRz = 10e8
     )
 
-    val resultados = analise.solve()
+//    val resultados = analiseSolverLinear(
+//        elementos = barras + mola, restricoes = restricoes, cargas = cargas,
+//        dofsAtivos = DOFsAtivos(
+//            ux = true, uy = true, uz = false,
+//            rx = false, ry = false, rz = true
+//        )//TODO testar as outras maneiras
+//    )
+    val resultados = analiseVetorDeslocamentoSolverNaoLinearBarra2D(
+        elementos = barras + mola + molaRestricao,
+        restricoes = restricoes,
+        cargas = cargas
+    )
+
     println(resultados.deslocamento(nos.last()))
     println(resultados.reacao(nos.first()))
 //    println(molaApoio.forcas(deslocamento = resultados[nos.first()]!!))
-
-    val funcao = { deformacaoCG: Double, curvatura: Double ->
-        EsforcosFlexaoReta(
-            normal = deformacaoCG * secao.area * secao.moduloDeDeformacao,
-            momento = curvatura * secao.inercia * secao.moduloDeDeformacao
-        )
-    }
 
     val vetorForcasNaoLineares = DoubleArray(size = nos.size * 3)
     barras.forEach { barra ->
@@ -60,7 +73,6 @@ fun main() {
             deslocamentoNo2.ux, deslocamentoNo2.uy, deslocamentoNo2.rz,
         )
         val f = barra.forcasInternas(
-            esforcosResistentes = funcao,
             deslocamentos = deslocamentos
         ).toList()
         println(f)
@@ -90,11 +102,23 @@ fun main() {
 
 data class SecaoPilar(val area: Double, val inercia: Double, val moduloDeDeformacao: Double)
 
+data class Restricao(
+    val no: No2D,
+    val ux: Boolean = false, val uy: Boolean = false, val uz: Boolean = false,
+    val rx: Boolean = false, val ry: Boolean = false, val rz: Boolean = false,
+) : ElementoFinito {
+    override val nos: List<No2D> = listOf(no)
+
+    override fun matrizDeRigidez(): MatrizDeRigidez {
+        TODO("Not yet implemented")
+    }
+}
+
 data class Mola(
     val no: No2D,
     val kTx: Double = 0.0, val kTy: Double = 0.0, val kTz: Double = 0.0,
     val kRx: Double = 0.0, val kRy: Double = 0.0, val kRz: Double = 0.0
-) : ElementoFinito {
+) : ElementoFinitoComForcasInternas {
     override val nos: List<No2D> = listOf(no)
 
     override fun matrizDeRigidez() = object : MatrizDeRigidez {
@@ -113,9 +137,34 @@ data class Mola(
         my = kRy * deslocamento.ry,
         mz = kRz * deslocamento.rz
     )
+
+    override fun forcasInternas(vetorDeslocamento: VetorDeslocamento): VetorForca {
+        val array = DoubleArray(size = 6)
+        array[0] = kTx * vetorDeslocamento.valor(0)
+        array[1] = kTy * vetorDeslocamento.valor(1)
+        array[2] = kTz * vetorDeslocamento.valor(2)
+        array[3] = kRx * vetorDeslocamento.valor(3)
+        array[4] = kRy * vetorDeslocamento.valor(4)
+        array[5] = kRz * vetorDeslocamento.valor(5)
+        return object : VetorForca {
+            override fun valor(indiceLocalDOF: Int): Double {
+                return array[indiceLocalDOF]
+            }
+        }
+    }
 }
 
-data class BarraPilar(val secao: SecaoPilar, val noInicial: No2D, val noFinal: No2D) : ElementoFinito {
+data class BarraPilar(
+    val secao: SecaoPilar,
+    val noInicial: No2D,
+    val noFinal: No2D,
+    val esforcosResistentes: (deformacaoCG: Double, curvatura: Double) -> EsforcosFlexaoReta = { deformacaoCG: Double, curvatura: Double ->
+        EsforcosFlexaoReta(
+            normal = deformacaoCG * secao.area * secao.moduloDeDeformacao,
+            momento = curvatura * secao.inercia * secao.moduloDeDeformacao
+        )
+    },
+) : ElementoFinitoComForcasInternas {
     override val nos: List<No2D> = listOf(noInicial, noFinal)
 
     private val l = run {
@@ -155,7 +204,6 @@ data class BarraPilar(val secao: SecaoPilar, val noInicial: No2D, val noFinal: N
      */
     private fun forcasInternasParcial(
         x: Double,
-        esforcosResistentes: (deformacaoCG: Double, curvatura: Double) -> EsforcosFlexaoReta,
         deslocamentos: DoubleArray
     ): DoubleArray {
         val forma = funcoesDeForma(x = x)
@@ -169,7 +217,7 @@ data class BarraPilar(val secao: SecaoPilar, val noInicial: No2D, val noFinal: N
         val wxx = wGenerico(forma = forma2, deslocamentos = deslocamentos)
 
         val deformacaoCG =
-            u0x //+ 0.5 * wx * wx TODO tirar comentário para considerar a não-linearidade geométrica. Tem que criar o processo iterativo pra poder chegar na resposta final
+            u0x + 0.5 * wx * wx //TODO tirar comentário para considerar a não-linearidade geométrica. Tem que criar o processo iterativo pra poder chegar na resposta final
         val curvatura = -wxx
 
         val esforcoInterno = esforcosResistentes(deformacaoCG, curvatura)
@@ -189,16 +237,41 @@ data class BarraPilar(val secao: SecaoPilar, val noInicial: No2D, val noFinal: N
     }
 
     fun forcasInternas(
-        esforcosResistentes: (deformacaoCG: Double, curvatura: Double) -> EsforcosFlexaoReta,
         deslocamentos: DoubleArray
     ): DoubleArray {
         return simpson(
             f = { x: Double ->
-                forcasInternasParcial(x = x, deslocamentos = deslocamentos, esforcosResistentes = esforcosResistentes)
+                forcasInternasParcial(x = x, deslocamentos = deslocamentos)
             },
             a = 0.0, b = l,
             delta = DoubleArray(size = 6) { 0.001 }
         )
+    }
+
+    override fun forcasInternas(vetorDeslocamento: VetorDeslocamento): VetorForca {
+        val arrayForcasInternas = forcasInternas(
+            deslocamentos = doubleArrayOf(
+                vetorDeslocamento.valor(0),
+                vetorDeslocamento.valor(1),
+                vetorDeslocamento.valor(5),
+                vetorDeslocamento.valor(6),
+                vetorDeslocamento.valor(7),
+                vetorDeslocamento.valor(11),
+            )
+        )
+        val arrayRedimensionado = DoubleArray(size = 12)
+        arrayRedimensionado[0] = arrayForcasInternas[0]
+        arrayRedimensionado[1] = arrayForcasInternas[1]
+        arrayRedimensionado[5] = arrayForcasInternas[2]
+        arrayRedimensionado[6] = arrayForcasInternas[3]
+        arrayRedimensionado[7] = arrayForcasInternas[4]
+        arrayRedimensionado[11] = arrayForcasInternas[5]
+
+        return object : VetorForca {
+            override fun valor(indiceLocalDOF: Int): Double {
+                return arrayRedimensionado[indiceLocalDOF]
+            }
+        }
     }
 
     private fun funcoesDeFormaGenerico(x: Double, xl0: Double, xl1: Double, xl2: Double, xl3: Double): DoubleArray {
@@ -218,7 +291,7 @@ data class BarraPilar(val secao: SecaoPilar, val noInicial: No2D, val noFinal: N
             xl0 = 1.0,
             xl1 = x / l,
             xl2 = x * x / (l * l),
-            xl3 = x * x * x / (l * l)
+            xl3 = x * x * x / (l * l * l)
         )
     }
 
@@ -294,4 +367,8 @@ private fun RealMatrix.tornarSimetrica(): RealMatrix {
         }
     }
     return this
+}
+
+interface ElementoFinitoComForcasInternas : ElementoFinito {
+    fun forcasInternas(vetorDeslocamento: VetorDeslocamento): VetorForca
 }

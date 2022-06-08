@@ -3,6 +3,7 @@ package vitorscoelho.gravitas.analiseestrutural.mef.exemplolivrov5
 import org.apache.commons.math3.linear.MatrixUtils
 import org.apache.commons.math3.linear.OpenMapRealMatrix
 import org.apache.commons.math3.linear.RealMatrix
+import vitorscoelho.gravitas.concretoarmado.metodogeralpilar.ElementoFinitoComForcasInternas
 import vitorscoelho.gravitas.concretoarmado.metodogeralpilar.Mola
 import kotlin.math.abs
 import kotlin.math.max
@@ -55,7 +56,8 @@ class AnaliseOutraTentativa2(
             )
         }
         matrizDeRigidezGlobal.adicionarElementos(
-            elementos = molasRestricoes, dofsAtivos = dofsAtivos, dofIndiceGlobal = dofIndiceGlobal
+            elementos = molasRestricoes, dofsAtivos = dofsAtivos, dofIndiceGlobal = dofIndiceGlobal,
+            zerarAntesDeAdicionar = true
         )
 
         //TODO Retirar o trecho abaixo quando implementar matriz simétrica. Pois só serve pra terminar de preencher matriz do Apache Commons Math
@@ -139,12 +141,15 @@ data class ResultadosAnalise(
 //    fun reacao(no: No2D) = map[no]!!
 //}
 
-private operator fun RealMatrix.get(linha: Int, coluna: Int): Double = this.getEntry(linha, coluna)
-private operator fun RealMatrix.set(linha: Int, coluna: Int, valor: Double) = this.setEntry(linha, coluna, valor)
-private fun RealMatrix.adicionarElementos(
+operator fun RealMatrix.get(linha: Int): Double = this.getEntry(linha, 0)
+operator fun RealMatrix.set(linha: Int, valor: Double) = this.setEntry(linha, 0, valor)
+operator fun RealMatrix.get(linha: Int, coluna: Int): Double = this.getEntry(linha, coluna)
+operator fun RealMatrix.set(linha: Int, coluna: Int, valor: Double) = this.setEntry(linha, coluna, valor)
+fun RealMatrix.adicionarElementos(
     elementos: List<ElementoFinito>,
     dofsAtivos: DOFsAtivos,
-    dofIndiceGlobal: (No2D, DOF) -> Int
+    dofIndiceGlobal: (No2D, DOF) -> Int,
+    zerarAntesDeAdicionar: Boolean = false
 ) {
     elementos.forEach { elemento ->
         val ke = elemento.matrizDeRigidez()
@@ -166,12 +171,65 @@ private fun RealMatrix.adicionarElementos(
                                 dofCausa = dofCausa
                             )
                             if (valor != 0.0) {
-                                this[indiceDofEfeito, indiceDofCausa] += valor
+                                if (zerarAntesDeAdicionar) {
+                                    this[indiceDofEfeito, indiceDofCausa] = valor
+                                } else {
+                                    this[indiceDofEfeito, indiceDofCausa] += valor
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+fun RealMatrix.adicionarForcas(
+    elementos: List<ElementoFinitoComForcasInternas>,
+    resultadosDeslocamentos: ResultadosDeslocamentos,
+    dofsAtivos: DOFsAtivos,
+    dofIndiceGlobal: (No2D, DOF) -> Int,
+    zerarAntesDeAdicionar: Boolean = false
+) {
+    elementos.forEach { elemento ->
+        val vetorDeslocamentoLocal = vetorDeslocamentoLocal(
+            elemento = elemento,
+            resultadosDeslocamentos = resultadosDeslocamentos
+        )
+        val forcasInternas = elemento.forcasInternas(vetorDeslocamentoLocal)
+        elemento.nos.forEachIndexed { indiceLocalNo, no ->
+            dofsAtivos.forEach { dof ->
+                val indiceGlobalDof = dofIndiceGlobal(no, dof)
+                val valor = forcasInternas.valor(indiceLocalNo = indiceLocalNo, dof = dof)
+                if (valor != 0.0) {
+                    if (zerarAntesDeAdicionar) {
+                        this[indiceGlobalDof, 0] = valor
+                    } else {
+                        this[indiceGlobalDof, 0] += valor
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun vetorDeslocamentoLocal(
+    elemento: ElementoFinito,
+    resultadosDeslocamentos: ResultadosDeslocamentos,
+): VetorDeslocamento {
+    val qtd = elemento.nos.size * 6
+    val arrayDeslocamento = OpenMapRealMatrix(elemento.nos.size * 6, 1)
+    elemento.nos.forEachIndexed { indiceLocalNo, no ->
+        val deslocamentoNo = resultadosDeslocamentos.deslocamento(no = no)
+        arrayDeslocamento[DOF.UX.indiceLocalElemento(indiceLocalNo)] = deslocamentoNo.ux
+        arrayDeslocamento[DOF.UY.indiceLocalElemento(indiceLocalNo)] = deslocamentoNo.uy
+        arrayDeslocamento[DOF.UZ.indiceLocalElemento(indiceLocalNo)] = deslocamentoNo.uz
+        arrayDeslocamento[DOF.RX.indiceLocalElemento(indiceLocalNo)] = deslocamentoNo.rx
+        arrayDeslocamento[DOF.RY.indiceLocalElemento(indiceLocalNo)] = deslocamentoNo.ry
+        arrayDeslocamento[DOF.RZ.indiceLocalElemento(indiceLocalNo)] = deslocamentoNo.rz
+    }
+    return object : VetorDeslocamento {
+        override fun valor(indiceLocalDOF: Int): Double = arrayDeslocamento[indiceLocalDOF]
     }
 }
