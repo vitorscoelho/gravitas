@@ -13,72 +13,52 @@ private fun analiseVetorForcasInternasNodais(
     val vetorForcasInternas: RealMatrix = OpenMapRealMatrix(qtdDOFsEstrutura, 1)
     val deslocamentos = criarResultadosDeslocamentos(
         vetorDeslocamentosNodais = vetorDeslocamento,
-        dofsAtivos = dofsAtivos,
+        dofsAtivos = dofsAtivosBarra2D,
         dofIndiceGlobal = dofIndiceGlobal
     )
     vetorForcasInternas.adicionarForcas(
         elementos = elementos,
         resultadosDeslocamentos = deslocamentos,
-        dofsAtivos = dofsAtivos,
+        dofsAtivos = dofsAtivosBarra2D,
         dofIndiceGlobal = dofIndiceGlobal,
     )
-
-//        val indicesDofs = intArrayOf(
-//            dofIndiceGlobal(barra.noInicial, DOF.UX),
-//            dofIndiceGlobal(barra.noInicial, DOF.UY),
-//            dofIndiceGlobal(barra.noInicial, DOF.RZ),
-//            dofIndiceGlobal(barra.noFinal, DOF.UX),
-//            dofIndiceGlobal(barra.noFinal, DOF.UY),
-//            dofIndiceGlobal(barra.noFinal, DOF.RZ),
-//        )
-//        val vetorDeslocamentosLocal = DoubleArray(size = 6) { index -> vetorDeslocamento[indicesDofs[index]] }
-//        val vetorForcasInternasLocais = barra.forcasInternas(
-//            esforcosResistentes = { deformacaoCG: Double, curvatura: Double ->
-//                EsforcosFlexaoReta(
-//                    normal = deformacaoCG * barra.secao.area * barra.secao.moduloDeDeformacao,
-//                    momento = curvatura * barra.secao.inercia * barra.secao.moduloDeDeformacao
-//                )
-//            },
-//            deslocamentos = vetorDeslocamentosLocal
-//        )
-//        (0..5).forEach { index -> vetorForcasInternas[indicesDofs[index]] = vetorForcasInternasLocais[index] }
-//    vetorForcasInternas[]
-//}
     return vetorForcasInternas
 }
 
 private val toleranciaForcas = 1e-4
 private val toleranciaDeslocamentos = 1e-4
-private val dofsAtivos = DOFsAtivos(
+val dofsAtivosBarra2D = DOFsAtivos(
     ux = true, uy = true, uz = false,
     rx = false, ry = false, rz = true
 )
 
-fun analiseVetorDeslocamentoSolverNaoLinearBarra2D(
+fun analiseSolverNaoLinearBarra2D(
     elementos: List<ElementoFinitoComForcasInternas>,
     restricoes: Map<No2D, List<DOF>>,
     cargas: Map<Carga, List<No2D>>,
+    limiteIteracoes: Int = 100
 ): ResultadosAnalise {
+    require(limiteIteracoes > 1)
     val nosDaEstrutura = analiseNosDaEstruturaIndiceGlobal(elementos = elementos)
     val dofIndiceGlobal = analiseDofsIndicesGlobais(
-        dofsAtivos = dofsAtivos,
+        dofsAtivos = dofsAtivosBarra2D,
         nosDaEstrutura = nosDaEstrutura
     )
     val qtdDOFsEstrutura = analiseQdtDOFsEstrutura(
         nosDaEstrutura = nosDaEstrutura,
-        dofsAtivos = dofsAtivos
+        dofsAtivos = dofsAtivosBarra2D
     )
     val matrizDeRigidezGlobal = analiseMatrizDeRigidezGlobal(
         elementos = elementos,
         nosDaEstrutura = nosDaEstrutura,
         restricoes = restricoes,
-        dofsAtivos = dofsAtivos,
+        dofsAtivos = dofsAtivosBarra2D,
         dofIndiceGlobal = dofIndiceGlobal
     )
     val vetorDeForcasNodaisExternas = analiseVetorForcasNodais(
         nosDaEstrutura = nosDaEstrutura,
         cargas = cargas,
-        dofsAtivos = dofsAtivos,
+        dofsAtivos = dofsAtivosBarra2D,
         dofIndiceGlobal = dofIndiceGlobal,
     )
 
@@ -87,7 +67,9 @@ fun analiseVetorDeslocamentoSolverNaoLinearBarra2D(
         vetorDeForcasNodais = vetorDeForcasNodaisExternas
     )
 
+    var iteracao = 0
     while (true) {
+        check(iteracao++ <= limiteIteracoes) { "Limite de iterações ($limiteIteracoes) ultrapassado sem atingir a convergência" }
         val vetorForcasInternas = analiseVetorForcasInternasNodais(
             elementos = elementos,
             vetorDeslocamento = vetorDeslocamento,
@@ -108,7 +90,7 @@ fun analiseVetorDeslocamentoSolverNaoLinearBarra2D(
 
     return criarResultadoAnalise(
         vetorDeslocamentosNodais = vetorDeslocamento,
-        dofsAtivos = dofsAtivos,
+        dofsAtivos = dofsAtivosBarra2D,
         dofIndiceGlobal = dofIndiceGlobal,
         restricoes = restricoes,
         matrizDeRigidezGlobal = matrizDeRigidezGlobal

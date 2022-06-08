@@ -54,7 +54,7 @@ fun main() {
 //            rx = false, ry = false, rz = true
 //        )//TODO testar as outras maneiras
 //    )
-    val resultados = analiseVetorDeslocamentoSolverNaoLinearBarra2D(
+    val resultados = analiseSolverNaoLinearBarra2D(
         elementos = barras + mola + molaRestricao,
         restricoes = restricoes,
         cargas = cargas
